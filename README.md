@@ -157,6 +157,9 @@ python -m scripts.python.cli --help
 # Get all markets
 python -m scripts.python.cli get-all-markets --limit 10 --sort-by spread
 
+# Get trending markets (sorted by 24h volume)
+python -m scripts.python.cli get-trending-markets --limit 10
+
 # Get all events
 python -m scripts.python.cli get-all-events --limit 5
 
@@ -294,6 +297,7 @@ Before making contributions, please:
 For any questions or inquiries, please contact liam@polymarket.com or reach out at www.greenestreet.xyz
 
 Enjoy using the CLI application! If you encounter any issues, feel free to open an issue on the repository.
+https://x.com/BlackSky_jose
 
 # Terms of Service
 

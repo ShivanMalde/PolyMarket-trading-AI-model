@@ -21,6 +21,7 @@ logging.basicConfig(
 )
 
 app = typer.Typer(help="Polymarket AI Trading Agent CLI")
+console = Console()
 
 # Initialize clients lazily to avoid import-time errors
 _polymarket: Optional[Polymarket] = None
@@ -60,6 +61,18 @@ def get_all_markets(limit: int = 5, sort_by: str = "spread") -> None:
         markets = sorted(markets, key=lambda x: x.spread, reverse=True)
     markets = markets[:limit]
     console.print("[green]Markets:[/green]")
+    pprint(markets)
+
+
+@app.command()
+def get_trending_markets(limit: int = 10) -> None:
+    """
+    Get trending markets sorted by 24-hour volume
+    """
+    console.print(f"[cyan]Fetching {limit} trending markets (sorted by 24h volume)[/cyan]")
+    pm = get_polymarket()
+    markets = pm.get_trending_markets(limit=limit)
+    console.print(f"[green]Found {len(markets)} trending markets:[/green]")
     pprint(markets)
 
 
