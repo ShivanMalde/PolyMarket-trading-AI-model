@@ -20,8 +20,7 @@ COPY pyproject.toml ./
 
 # Install Python dependencies
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install -e ".[dev]" && \
-    pip cache purge
+    pip install -e ".[dev]"
 
 # Copy application code
 COPY . .
