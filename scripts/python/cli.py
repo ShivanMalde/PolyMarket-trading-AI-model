@@ -172,7 +172,7 @@ def ask_llm(user_input: str) -> None:
 @app.command()
 def ask_polymarket_llm(user_input: str) -> None:
     """
-    What types of markets do you want trade?
+    What types of markets do you want to trade?
     """
     console.print(f"[cyan]Querying Polymarket LLM: {user_input}[/cyan]")
     executor = Executor()
