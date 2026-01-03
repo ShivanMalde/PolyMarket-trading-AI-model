@@ -173,7 +173,7 @@ class Executor:
         content = result.content
         logger.debug(f"Superforecast result: {content[:200]}...")
 
-        prompt = self.prompter.one_best_trade(content, outcomes, outcome_prices)
+        prompt = self.prompter.ai_one_best_trade(content, outcomes, outcome_prices)
         logger.debug("Determining best trade")
         result = self.llm.invoke(prompt)
         content = result.content

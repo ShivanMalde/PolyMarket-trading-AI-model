@@ -21,4 +21,4 @@ class TradingAgent(Scheduler):
     def __init__(self) -> None:
         super()
         self.trader = Trader()
-        self.weekly(Monday(), self.trader.one_best_trade)
+        self.weekly(Monday(), self.trader.ai_one_best_trade)

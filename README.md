@@ -501,7 +501,7 @@ You can also run the trading script directly without the CLI:
 python -m agents.application.trade
 ```
 
-This will execute the `one_best_trade()` method directly.
+This will execute the `ai_one_best_trade()` method directly.
 
 ### Docker Deployment
 

@@ -189,7 +189,7 @@ def run_autonomous_trader() -> None:
     console.print("[yellow]⚠️  Starting autonomous trader...[/yellow]")
     console.print("[yellow]⚠️  Please review Terms of Service: https://polymarket.com/tos[/yellow]")
     trader = Trader()
-    trader.one_best_trade()
+    trader.ai_one_best_trade()
     console.print("[green]Autonomous trading completed![/green]")
 
 

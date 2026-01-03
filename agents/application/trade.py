@@ -29,10 +29,10 @@ class Trader:
                 except OSError as e:
                     logger.warning(f"Failed to clear {db_dir}: {e}")
 
-    def one_best_trade(self) -> None:
+    def ai_one_best_trade(self) -> None:
         """
 
-        one_best_trade is a strategy that evaluates all events, markets, and orderbooks
+        ai_one_best_trade is a strategy that evaluates all events, markets, and orderbooks
 
         leverages all available information sources accessible to the autonomous agent
 
@@ -71,10 +71,10 @@ class Trader:
             logger.info(f"6. TRADED {trade}")
 
         except Exception as e:
-            logger.error(f"Error in one_best_trade: {e}", exc_info=True)
+            logger.error(f"Error in ai_one_best_trade: {e}", exc_info=True)
             # TODO: re-enable retry
             #logger.info("Retrying...")
-            #self.one_best_trade()
+            #self.ai_one_best_trade()
 
     def maintain_positions(self):
         pass
@@ -85,4 +85,4 @@ class Trader:
 
 if __name__ == "__main__":
     t = Trader()
-    t.one_best_trade()
+    t.ai_one_best_trade()

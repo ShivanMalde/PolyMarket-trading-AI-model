@@ -143,7 +143,7 @@ class Prompter:
         I believe {question} has a likelihood `{float}` for outcome of `{str}`.
         """
 
-    def one_best_trade(
+    def ai_one_best_trade(
         self,
         prediction: str,
         outcomes: List[str],
@@ -183,7 +183,7 @@ class Prompter:
         """
         )
 
-    def format_price_from_one_best_trade_output(self, output: str) -> str:
+    def format_price_from_ai_one_best_trade_output(self, output: str) -> str:
         return f"""
         
         You will be given an input such as:
@@ -201,7 +201,7 @@ class Prompter:
         
         """
 
-    def format_size_from_one_best_trade_output(self, output: str) -> str:
+    def format_size_from_ai_one_best_trade_output(self, output: str) -> str:
         return f"""
         
         You will be given an input such as:
