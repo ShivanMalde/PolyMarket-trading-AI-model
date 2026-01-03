@@ -3,27 +3,12 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 
-class Trade(BaseModel):
-    id: int
-    taker_order_id: str
-    market: str
-    asset_id: str
+class TradeOrderArgs(BaseModel):
+    market: tuple
     side: str
-    size: str
-    fee_rate_bps: str
+    amount: float
     price: str
-    status: str
-    match_time: str
-    last_update: str
-    outcome: str
-    maker_address: str
-    owner: str
-    transaction_hash: str
-    bucket_index: str
-    maker_orders: list[str]
-    type: str
-
-
+    
 class SimpleMarket(BaseModel):
     id: int
     question: str

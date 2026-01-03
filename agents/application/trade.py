@@ -59,18 +59,22 @@ class Trader:
                 return
 
             market = filtered_markets[0]
-            best_trade = self.agent.source_best_trade(market)
-            logger.info(f"5. CALCULATED TRADE {best_trade}")
+            best_trade_string = self.agent.source_best_trade(market)
+            logger.info("5. CALCULATED TRADE:")
+            logger.info(f"Trading on market id {market[0].metadata["id"]}: {market[0].metadata["question"]}")
+            logger.info(best_trade_string)
 
-            amount = self.agent.format_trade_prompt_for_execution(best_trade)
+            best_trade = self.agent.format_trade_prompt_for_execution(best_trade_string, market)
+
             # Please refer to TOS before uncommenting: polymarket.com/tos
-            # trade = self.polymarket.execute_market_order(market, amount)
-            # logger.info(f"6. TRADED {trade}")
+            trade = self.polymarket.execute_market_order(best_trade)
+            logger.info(f"6. TRADED {trade}")
 
         except Exception as e:
             logger.error(f"Error in one_best_trade: {e}", exc_info=True)
-            logger.info("Retrying...")
-            self.one_best_trade()
+            # TODO: re-enable retry
+            #logger.info("Retrying...")
+            #self.one_best_trade()
 
     def maintain_positions(self):
         pass

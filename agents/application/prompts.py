@@ -177,13 +177,9 @@ class Prompter:
         Your trade should approximate price using the likelihood in your prediction.
 
         Example response:
-
-        RESPONSE```
             price:0.5,
             size:0.1,
             side:BUY,
-        ```
-        
         """
         )
 

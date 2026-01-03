@@ -11,11 +11,11 @@ from dotenv import load_dotenv
 
 from web3 import Web3
 from web3.constants import MAX_INT
-from web3.middleware import geth_poa_middleware
+from web3.middleware import ExtraDataToPOAMiddleware
 
 import httpx
 from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import ApiCreds
+from py_clob_client.clob_types import ApiCreds, BalanceAllowanceParams, AssetType
 from py_clob_client.constants import AMOY, POLYGON
 from py_order_utils.builders import OrderBuilder
 from py_order_utils.model import OrderData
@@ -28,7 +28,7 @@ from py_clob_client.clob_types import (
 )
 from py_clob_client.order_builder.constants import BUY
 
-from agents.utils.objects import SimpleMarket, SimpleEvent
+from agents.utils.objects import SimpleMarket, SimpleEvent, TradeOrderArgs
 
 load_dotenv()
 
@@ -36,8 +36,13 @@ load_dotenv()
 class Polymarket:
     def __init__(self) -> None:
         self.gamma_url = "https://gamma-api.polymarket.com"
-        self.gamma_markets_endpoint = self.gamma_url + "/markets"
-        self.gamma_events_endpoint = self.gamma_url + "/events"
+        self.gamma_markets_endpoint = self.gamma_url + "/markets?closed=false&order=volume24hr&ascending=false" # only look for open markets, sort highest 24h volume first
+        self.gamma_events_endpoint = self.gamma_url + "/events?active=true&archived=false&closed=false&order=volume24hr&ascending=false" # only look for open events, sort highest 24h volume first
+
+        query_limit = int(os.getenv("query_limit"))
+        if query_limit:
+            self.gamma_markets_endpoint += f"&limit={query_limit}"
+            self.gamma_events_endpoint += f"&limit={query_limit}"
 
         self.clob_url = "https://clob.polymarket.com"
         self.clob_auth_endpoint = self.clob_url + "/auth/api-key"
@@ -45,7 +50,6 @@ class Polymarket:
         self.chain_id = 137  # POLYGON
         self.private_key = os.getenv("POLYGON_WALLET_PRIVATE_KEY")
         self.polygon_rpc = "https://polygon-rpc.com"
-        self.w3 = Web3(Web3.HTTPProvider(self.polygon_rpc))
 
         self.exchange_address = "0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e"
         self.neg_risk_exchange_address = "0xC5d563A36AE78145C45a50134d48A1215220f80a"
@@ -57,7 +61,7 @@ class Polymarket:
         self.ctf_address = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 
         self.web3 = Web3(Web3.HTTPProvider(self.polygon_rpc))
-        self.web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        self.web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
         self.usdc = self.web3.eth.contract(
             address=self.usdc_address, abi=self.erc20_approve
@@ -218,7 +222,7 @@ class Polymarket:
         market = {
             "id": int(market["id"]),
             "question": market["question"],
-            "end": market["endDate"],
+            "end": market["endDate"] if hasattr(market, "endDate") else "",
             "description": market["description"],
             "active": market["active"],
             # "deployed": market["deployed"],
@@ -242,7 +246,6 @@ class Polymarket:
             print(len(res.json()))
             for event in res.json():
                 try:
-                    print(1)
                     event_data = self.map_api_to_event(event)
                     events.append(SimpleEvent(**event_data))
                 except Exception as e:
@@ -275,7 +278,7 @@ class Polymarket:
         for event in events:
             if (
                 event.active
-                and not event.restricted
+                #and not event.restricted
                 and not event.archived
                 and not event.closed
             ):
@@ -302,7 +305,7 @@ class Polymarket:
         return float(self.client.get_price(token_id))
 
     def get_address_for_private_key(self):
-        account = self.w3.eth.account.from_key(str(self.private_key))
+        account = self.web3.eth.account.from_key(str(self.private_key))
         return account.address
 
     def build_order(
@@ -338,11 +341,17 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
-    def execute_market_order(self, market, amount) -> str:
+    def execute_market_order(self, best_trade) -> str:
+
+        market = best_trade["market"]
+        amount = best_trade["amount"]
+        side = best_trade["side"]
+        
         token_id = ast.literal_eval(market[0].dict()["metadata"]["clob_token_ids"])[1]
         order_args = MarketOrderArgs(
             token_id=token_id,
             amount=amount,
+            side=side,
         )
         signed_order = self.client.create_market_order(order_args)
         print("Execute market order... signed_order ", signed_order)
@@ -352,10 +361,9 @@ class Polymarket:
         return resp
 
     def get_usdc_balance(self) -> float:
-        balance_res = self.usdc.functions.balanceOf(
-            self.get_address_for_private_key()
-        ).call()
-        return float(balance_res / 10e5)
+        balance_allowance = self.client.get_balance_allowance(params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL, signature_type=2))
+        balance = float(balance_allowance["balance"])/10e5
+        return balance
 
 
 def test():

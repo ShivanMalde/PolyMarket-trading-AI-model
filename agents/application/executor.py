@@ -1,17 +1,17 @@
 import os
 import json
 import ast
-import re
 import logging
 import math
 from typing import List, Dict, Any
 
 from dotenv import load_dotenv
+import re
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.connectors.chroma import PolymarketRAG as Chroma
-from agents.utils.objects import SimpleEvent, SimpleMarket
+from agents.utils.objects import SimpleEvent, SimpleMarket, TradeOrderArgs
 from agents.application.prompts import Prompter
 from agents.polymarket.polymarket import Polymarket
 
@@ -30,13 +30,14 @@ def retain_keys(data, keys_to_retain):
         return data
 
 class Executor:
-    def __init__(self, default_model: str = 'gpt-4o-mini') -> None:
+    def __init__(self, default_model: str = 'gpt-5-nano') -> None:
         load_dotenv()
         max_token_model: Dict[str, int] = {
             'gpt-3.5-turbo-16k': 15000,
             'gpt-4-1106-preview': 95000,
             'gpt-4o-mini': 128000,
             'gpt-4o': 128000,
+            'gpt-5-nano': 128000,
         }
         self.token_limit = max_token_model.get(default_model, 128000)
         self.prompter = Prompter()
@@ -146,8 +147,11 @@ class Executor:
             market_ids = data["metadata"]["markets"].split(",")
             for market_id in market_ids:
                 market_data = self.gamma.get_market(market_id)
-                formatted_market_data = self.polymarket.map_api_to_market(market_data)
-                markets.append(formatted_market_data)
+                if market_data["active"] == True:
+                    formatted_market_data = self.polymarket.map_api_to_market(market_data)
+                    markets.append(formatted_market_data)
+                else:
+                    logger.debug(f"Excluded market id {market_id} as it is not active")
         return markets
 
     def filter_markets(self, markets) -> "list[tuple]":
@@ -176,12 +180,27 @@ class Executor:
         logger.debug(f"Best trade result: {content[:200]}...")
         return content
 
-    def format_trade_prompt_for_execution(self, best_trade: str) -> float:
-        data = best_trade.split(",")
-        # price = re.findall("\d+\.\d+", data[0])[0]
-        size = re.findall("\d+\.\d+", data[1])[0]
+    def format_trade_prompt_for_execution(self, best_trade_string: str, market) -> TradeOrderArgs:
+        # Clean the string by removing newlines, backticks, and apostrophes
+        cleaned_string = re.sub(r'[`\'\n]', '', best_trade_string)
+
+        trade_data = {}
+        for item in cleaned_string.strip().rstrip(',').split(','):
+            if item.strip() != "" and ':' in item:
+                key, value = item.split(':', 1)
+                trade_data[key.strip()] = value.strip()
+
         usdc_balance = self.polymarket.get_usdc_balance()
-        return float(size) * usdc_balance
+        size = float(trade_data.get('size', 0))
+        
+        trade_order_args = {
+            "market": market,
+            "amount": float(size) * usdc_balance,
+            "price": float(trade_data.get('price', 0)),
+            "side": trade_data.get('side', 0),
+        }
+
+        return trade_order_args
 
     def source_best_market_to_create(self, filtered_markets) -> str:
         prompt = self.prompter.create_new_market(filtered_markets)
