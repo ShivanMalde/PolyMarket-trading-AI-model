@@ -147,7 +147,7 @@ class Executor:
             market_ids = data["metadata"]["markets"].split(",")
             for market_id in market_ids:
                 market_data = self.gamma.get_market(market_id)
-                if market_data["active"] == True:
+                if market_data["active"] == True and market_data["umaResolutionStatuses"] == "[]":
                     formatted_market_data = self.polymarket.map_api_to_market(market_data)
                     markets.append(formatted_market_data)
                 else:
