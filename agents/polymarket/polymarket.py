@@ -73,7 +73,8 @@ class Polymarket:
         )
 
         self._init_api_keys()
-        self._init_approvals(False)
+        run_approvals = bool(os.getenv("run_approvals"))
+        self._init_approvals(run_approvals)
 
     def _init_api_keys(self) -> None:
         self.client = ClobClient(
@@ -96,6 +97,7 @@ class Polymarket:
         ctf = self.ctf
 
         # CTF Exchange
+        self.client.logger.info("Sending USDC approval")
         raw_usdc_approve_txn = usdc.functions.approve(
             "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E", int(MAX_INT, 0)
         ).build_transaction({"chainId": chain_id, "from": pub_key, "nonce": nonce})
@@ -109,9 +111,11 @@ class Polymarket:
             send_usdc_approve_tx, 600
         )
         print(usdc_approve_tx_receipt)
+        self.client.logger.info("USDC approval completed")
 
         nonce = web3.eth.get_transaction_count(pub_key)
 
+        self.client.logger.info("Sending CTF approval")
         raw_ctf_approval_txn = ctf.functions.setApprovalForAll(
             "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E", True
         ).build_transaction({"chainId": chain_id, "from": pub_key, "nonce": nonce})
@@ -125,8 +129,10 @@ class Polymarket:
             send_ctf_approval_tx, 600
         )
         print(ctf_approval_tx_receipt)
+        self.client.logger.info("CTF approval completed")
 
         nonce = web3.eth.get_transaction_count(pub_key)
+
 
         # Neg Risk CTF Exchange
         raw_usdc_approve_txn = usdc.functions.approve(
