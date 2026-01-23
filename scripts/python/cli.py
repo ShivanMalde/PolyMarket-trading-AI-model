@@ -1,5 +1,6 @@
 import logging
 import sys
+from os import getenv
 from typing import Optional
 
 import typer
@@ -188,8 +189,17 @@ def run_autonomous_trader() -> None:
     """
     console.print("[yellow]⚠️  Starting autonomous trader...[/yellow]")
     console.print("[yellow]⚠️  Please review Terms of Service: https://polymarket.com/tos[/yellow]")
-    trader = Trader()
-    trader.ai_one_best_trade()
+    
+    trading_strategy = getenv("trading_strategy")
+    trader = Trader(trading_strategy)
+    console.print(f"[yellow]Using trading strategy: {trading_strategy}...[/yellow]")
+    if trader.trading_strategy == "ai_one_best_trade":
+        trader.ai_one_best_trade()
+    elif trader.trading_strategy == "arbitrage":
+        slug = getenv("arbitrage_series_slug")
+        trader.arbitrage(slug)
+    else:
+        console.print(f"[red]Trading strategy {trading_strategy} is unknown, exiting without trading[/red]")    
     console.print("[green]Autonomous trading completed![/green]")
 
 

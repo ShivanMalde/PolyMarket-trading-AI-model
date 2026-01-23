@@ -6,6 +6,7 @@ import pdb
 import time
 import ast
 import requests
+import datetime
 
 from dotenv import load_dotenv
 
@@ -38,7 +39,8 @@ class Polymarket:
         self.gamma_url = "https://gamma-api.polymarket.com"
         self.gamma_markets_endpoint = self.gamma_url + "/markets?closed=false&order=volume24hr&ascending=false" # only look for open markets, sort highest 24h volume first
         self.gamma_events_endpoint = self.gamma_url + "/events?active=true&archived=false&closed=false&order=volume24hr&ascending=false" # only look for open events, sort highest 24h volume first
-
+        self.gamma_series_endpoint = self.gamma_url + "/series?closed=false&limit=1"
+        
         query_limit = int(os.getenv("query_limit"))
         if query_limit:
             self.gamma_markets_endpoint += f"&limit={query_limit}"
@@ -218,6 +220,49 @@ class Polymarket:
             market = data[0]
             return self.map_api_to_market(market, token_id)
 
+    def get_active_market_from_series(self, slug: str) -> SimpleMarket:
+        params = {"slug": slug}
+        res = httpx.get(self.gamma_series_endpoint, params=params)
+        if res.status_code != 200:
+            raise Exception(f"Failed to fetch series data: HTTP {res.status_code}")
+        series_list = res.json()
+        if not series_list:
+            raise ValueError(f"No series found with slug: {slug}")
+        series_data = series_list[0]
+        events = series_data.get('events', [])
+        if not events:
+            raise ValueError(f"Series '{slug}' contains no events")
+        
+        # Filter events with endDate > current UTC time
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        future_events = []
+        for event in events:
+            try:        
+                end_date = datetime.datetime.fromisoformat(event['endDate'])
+                if end_date > current_time:
+                    future_events.append(event)
+            except (KeyError, ValueError) as e:
+                continue  # Skip events with invalid dates
+
+        if not future_events:
+            raise ValueError(f"No future events found in series '{slug}'")
+        
+        # Sort by endDate ascending and select first (earliest)
+        future_events.sort(key=lambda e: datetime.datetime.fromisoformat(e['endDate']))
+        selected_event = future_events[0]
+        markets_url = f"{self.gamma_markets_endpoint}&slug={selected_event['slug']}"
+        markets_res = httpx.get(markets_url)
+        if markets_res.status_code != 200:
+            raise Exception(f"Failed to fetch markets for event {selected_event['id']}: HTTP {markets_res.status_code}")
+        
+        markets = markets_res.json()
+        if not markets:
+            raise ValueError(f"No markets found for event {selected_event['id']}")
+        
+        # Return the first market (assuming it's the active one for the event)
+        market_data = markets[0]
+        return self.map_api_to_market(market_data)
+
     def map_api_to_market(self, market, token_id: str = "") -> SimpleMarket:
         market = {
             "id": int(market["id"]),
@@ -301,8 +346,8 @@ class Polymarket:
     def get_orderbook(self, token_id: str) -> OrderBookSummary:
         return self.client.get_order_book(token_id)
 
-    def get_orderbook_price(self, token_id: str) -> float:
-        return float(self.client.get_price(token_id))
+    def get_orderbook_price(self, token_id: str, side: str) -> float:
+        return float(self.client.get_price(token_id, side)["price"])
 
     def get_address_for_private_key(self):
         account = self.web3.eth.account.from_key(str(self.private_key))
@@ -341,17 +386,12 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
-    def execute_market_order(self, best_trade) -> str:
+    def execute_market_order(self, market: str, amount: str, token_id: str) -> str:
 
-        market = best_trade["market"]
-        amount = best_trade["amount"]
-        side = best_trade["side"]
-        
-        token_id = ast.literal_eval(market[0].dict()["metadata"]["clob_token_ids"])[1]
         order_args = MarketOrderArgs(
             token_id=token_id,
             amount=amount,
-            side=side,
+            side="BUY",
         )
         signed_order = self.client.create_market_order(order_args)
         print("Execute market order... signed_order ", signed_order)
