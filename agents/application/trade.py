@@ -101,7 +101,7 @@ class Trader:
         try:
             positions = {}
             if positions_file.exists():
-                with open(positions_file, 'w') as f:
+                with open(positions_file, 'r') as f:
                     positions = load(f)
             
             # Update with current market's positions
@@ -177,6 +177,11 @@ class Trader:
                 
             size = base_size * (1 + size_adjustment * 0.1)  # Small adjustment for balancing
             
+            # Minimum order size is 1, if less than this then don't bother buying
+            if size < 1:
+                logger.info(f"Trade rejected: size {size} is below minimum amount 1")
+                return {}
+
             # Calculate new costs and pair cost
             new_qty = qty_yes + size if side == "YES" else qty_no + size
             new_cost = cost_yes + (price * size) if side == "YES" else cost_no + (price * size)
@@ -231,7 +236,7 @@ class Trader:
             logger.error(f"Error checking arbitrage exit: {e}")
             return False
 
-    def arbitrage(self, slug: str) -> None:
+    def arbitrage(self, dry_run: bool, slug: str) -> None:
         """Arbitrage strategy implementation."""
         try:
             self.pre_trade_logic()
@@ -257,24 +262,26 @@ class Trader:
             if not trade:
                 logger.info("No profitable trade opportunity found")
                 return
+                            
+            if(not(dry_run)):
+                # Execute trade (similar to existing execution)
+                # Note: Would need to adapt execute_market_order for limit orders
+                # For now, using market order as example
+                trade_result = self.polymarket.execute_market_order([market], trade["amount"], trade["token_id"])
+                logger.info(f"TRADE EXECUTED: {trade_result}")
+                # Update positions
+                current_positions["market_id"] = market["id"]
+                if trade["side"] == "YES":
+                    current_positions["qty_yes"] += trade["amount"]
+                    current_positions["cost_yes"] += trade["price"] * trade["amount"]
+                else:
+                    current_positions["qty_no"] += trade["amount"]
+                    current_positions["cost_no"] += trade["price"] * trade["amount"]
                 
-            # Execute trade (similar to existing execution)
-            # Note: Would need to adapt execute_market_order for limit orders
-            # For now, using market order as example            
-            trade_result = self.polymarket.execute_market_order([market], trade["amount"], trade["token_id"])
-            logger.info(f"TRADE EXECUTED: {trade_result}")
-            
-            # Update positions
-            current_positions["market_id"] = market["id"]
-            if trade["side"] == "YES":
-                current_positions["qty_yes"] += trade["amount"]
-                current_positions["cost_yes"] += trade["price"] * trade["amount"]
+                # Save updated positions
+                self.save_arbitrage_positions(current_positions, market["id"])
             else:
-                current_positions["qty_no"] += trade["amount"]
-                current_positions["cost_no"] += trade["price"] * trade["amount"]
-            
-            # Save updated positions
-            self.save_arbitrage_positions(current_positions)
+                logger.info(f"DRY RUN, TRADE NOT EXECUTED")
             
         except Exception as e:
             logger.error(f"Error in arbitrage: {e}", exc_info=True)

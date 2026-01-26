@@ -2,6 +2,7 @@ import logging
 import sys
 from os import getenv
 from typing import Optional
+from ast import literal_eval
 
 import typer
 from rich.console import Console
@@ -193,11 +194,15 @@ def run_autonomous_trader() -> None:
     trading_strategy = getenv("trading_strategy")
     trader = Trader(trading_strategy)
     console.print(f"[yellow]Using trading strategy: {trading_strategy}...[/yellow]")
+    dry_run = bool(literal_eval(getenv("dry_run"))) 
     if trader.trading_strategy == "ai_one_best_trade":
         trader.ai_one_best_trade()
     elif trader.trading_strategy == "arbitrage":
         slug = getenv("arbitrage_series_slug")
-        trader.arbitrage(slug)
+        dry_run_initial_trade = bool(literal_eval(getenv("dry_run_initial_trade"))) 
+        trader.arbitrage(dry_run_initial_trade, slug)
+        while True:
+            trader.arbitrage(dry_run, slug)
     else:
         console.print(f"[red]Trading strategy {trading_strategy} is unknown, exiting without trading[/red]")    
     console.print("[green]Autonomous trading completed![/green]")
