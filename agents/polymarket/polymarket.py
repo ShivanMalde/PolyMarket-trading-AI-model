@@ -358,20 +358,31 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
-    def execute_market_order(self, market: str, amount: str, token_id: str) -> str:
+    def execute_market_order(self, market: str, amount: str, token_id: str, max_retries: int = 3) -> str:
+        for attempt in range(max_retries):
+            try:                        
+                order_args = MarketOrderArgs(
+                    token_id=token_id,
+                    amount=amount,
+                    side="BUY",
+                    order_type=OrderType.FOK,
+                )
+                signed_order = self.client.create_market_order(order_args)
+                print("Execute market order... signed_order ", signed_order)
+                resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
+                print(resp)
+                print("Done!")
+                return resp
+            except Exception as e:
+                self.client.logger.warning(f"FOK order failed (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                # For other errors, wait before retrying
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
 
-        order_args = MarketOrderArgs(
-            token_id=token_id,
-            amount=amount,
-            side="BUY",
-            order_type=OrderType.FOK,
-        )
-        signed_order = self.client.create_market_order(order_args)
-        print("Execute market order... signed_order ", signed_order)
-        resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
-        print(resp)
-        print("Done!")
-        return resp
+                # If all retries failed, raise the exception
+                raise                
 
     def get_usdc_balance(self) -> float:
         balance_allowance = self.client.get_balance_allowance(params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL, signature_type=2))
