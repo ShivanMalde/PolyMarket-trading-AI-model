@@ -14,7 +14,7 @@ class Creator:
         self.agent = Agent()
     def one_best_market(self):
         """
-        one_best_trade is a strategy that evaluates all events, markets, and orderbooks
+        ai_one_best_trade is a strategy that evaluates all events, markets, and orderbooks
 
         leverages all available information sources accessible to the autonomous agent
 

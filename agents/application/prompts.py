@@ -86,7 +86,7 @@ class Prompter:
     def polymarket_analyst_api(self) -> str:
         return f"""You are an AI assistant for analyzing prediction markets.
                 You will be provided with json output for api data from Polymarket.
-                Polymarket is an online prediction market that lets users Bet on the outcome of future events in a wide range of topics, like sports, politics, and pop culture. 
+                Polymarket is an online prediction market that lets users bet on the outcome of future events in a wide range of topics, like sports, politics, and pop culture. 
                 Get accurate real-time probabilities of the events that matter most to you. """
 
     def filter_events(self) -> str:
@@ -124,7 +124,7 @@ class Prompter:
             - Seek out diverse sources of information.
             - Look for both quantitative data and qualitative insights.
             - Stay updated on relevant news and expert analyses.
-        3. Considere Base Rates:
+        3. Consider Base Rates:
             - Use statistical baselines or historical averages as a starting point.
             - Compare the current situation to similar past events to establish a benchmark probability.
         4. Identify and Evaluate Factors:
@@ -143,7 +143,7 @@ class Prompter:
         I believe {question} has a likelihood `{float}` for outcome of `{str}`.
         """
 
-    def one_best_trade(
+    def ai_one_best_trade(
         self,
         prediction: str,
         outcomes: List[str],
@@ -177,17 +177,13 @@ class Prompter:
         Your trade should approximate price using the likelihood in your prediction.
 
         Example response:
-
-        RESPONSE```
             price:0.5,
             size:0.1,
             side:BUY,
-        ```
-        
         """
         )
 
-    def format_price_from_one_best_trade_output(self, output: str) -> str:
+    def format_price_from_ai_one_best_trade_output(self, output: str) -> str:
         return f"""
         
         You will be given an input such as:
@@ -205,7 +201,7 @@ class Prompter:
         
         """
 
-    def format_size_from_one_best_trade_output(self, output: str) -> str:
+    def format_size_from_ai_one_best_trade_output(self, output: str) -> str:
         return f"""
         
         You will be given an input such as:
