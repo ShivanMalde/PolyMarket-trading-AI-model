@@ -89,11 +89,11 @@ class Trader:
                 with open(positions_file, 'r') as f:
                     positions = load(f)
                     logger.info(f"Loaded existing arbitrage positions: {positions}")
-                    current_positions = positions.get(str(market_id),{"qty_yes": 0.0, "qty_no": 0.0, "cost_yes": 0.0, "cost_no": 0.0})
+                    current_positions = positions.get(str(market_id),{"amount_yes": 0.0, "amount_no": 0.0, "cost_yes": 0.0, "cost_no": 0.0})
                     return current_positions
             except Exception as e:
                 logger.warning(f"Failed to load positions: {e}")
-        return {"qty_yes": 0.0, "qty_no": 0.0, "cost_yes": 0.0, "cost_no": 0.0}
+        return {"amount_yes": 0.0, "amount_no": 0.0, "cost_yes": 0.0, "cost_no": 0.0}
 
     def save_arbitrage_positions(self, current_positions: dict, market_id: int):
         """Save arbitrage positions to persistent storage."""
@@ -140,15 +140,17 @@ class Trader:
         """Calculate optimal arbitrage trade based on current positions and prices."""
         try:
             # Current position metrics
-            qty_yes = positions["qty_yes"]
-            qty_no = positions["qty_no"] 
+            amount_yes = positions["amount_yes"]
+            amount_no = positions["amount_no"] 
             cost_yes = positions["cost_yes"]
             cost_no = positions["cost_no"]
             
             # Current averages
-            avg_yes = cost_yes / qty_yes if qty_yes > 0 else 0
-            avg_no = cost_no / qty_no if qty_no > 0 else 0
+            avg_yes = cost_yes / amount_yes if amount_yes > 0 else 0
+            avg_no = cost_no / amount_no if amount_no > 0 else 0
             current_pair_cost = avg_yes + avg_no
+
+            is_initial_trade = amount_yes == 0 and amount_no == 0 # initial trade in this market
             
             # Price thresholds (configurable)
             cheap_threshold = float(getenv("ARBITRAGE_CHEAP_THRESHOLD", "0.49"))
@@ -167,13 +169,19 @@ class Trader:
             
             # Calculate position size (similar to existing sizing logic)
             usdc_balance = self.polymarket.get_usdc_balance()
-            base_size = min(usdc_balance * 0.05, 10.0)  # 5% of balance or $10 max
+            
+            # Only check balance for initial trades (no existing positions)
+            if is_initial_trade and usdc_balance < 2:
+                logger.info(f"Trade rejected: balance {usdc_balance} is below minimum $2 for initial trade")
+                return {}
+
+            base_size = max(min(usdc_balance * 0.05, 10.0), 1.0)  # ceiling of 5% of balance or $10, floor of $1
             
             # Adjust size to maintain balance
             if side == "YES":
-                size_adjustment = qty_no - qty_yes  # Buy more YES if we have more NO
+                size_adjustment = amount_no - amount_yes  # Buy more YES if we have more NO
             else:
-                size_adjustment = qty_yes - qty_no  # Buy more NO if we have more YES
+                size_adjustment = amount_yes - amount_no  # Buy more NO if we have more YES
                 
             size = base_size * (1 + size_adjustment * 0.1)  # Small adjustment for balancing
             
@@ -183,10 +191,10 @@ class Trader:
                 return {}
 
             # Calculate new costs and pair cost
-            new_qty = qty_yes + size if side == "YES" else qty_no + size
+            new_amount = amount_yes + size if side == "YES" else amount_no + size
             new_cost = cost_yes + (price * size) if side == "YES" else cost_no + (price * size)
             
-            new_avg = new_cost / new_qty
+            new_avg = new_cost / new_amount
             other_avg = avg_no if side == "YES" else avg_yes
             new_pair_cost = new_avg + other_avg
             
@@ -199,7 +207,7 @@ class Trader:
             trade = {
                 "market": market,
                 "side": side,
-                "amount": size,
+                "dollar_amount": size,
                 "price": price,
                 "token_id": prices["yes_token_id"] if side == "YES" else prices["no_token_id"],
                 "new_pair_cost": new_pair_cost
@@ -215,19 +223,19 @@ class Trader:
     def check_arbitrage_exit(self, positions: dict) -> bool:
         """Check if arbitrage strategy should exit with guaranteed profit."""
         try:
-            qty_yes = positions["qty_yes"]
-            qty_no = positions["qty_no"]
+            amount_yes = positions["amount_yes"]
+            amount_no = positions["amount_no"]
             cost_yes = positions["cost_yes"]
             cost_no = positions["cost_no"]
             
             total_cost = cost_yes + cost_no
-            min_qty = min(qty_yes, qty_no)
+            min_amount = min(amount_yes, amount_no)
             
-            # Exit when min(qty_yes, qty_no) > (cost_yes + cost_no)
-            should_exit = min_qty > total_cost
+            # Exit when min(amount_yes, amount_no) > (cost_yes + cost_no)
+            should_exit = min_amount > total_cost
             
             if should_exit:
-                profit = min_qty - total_cost
+                profit = min_amount - total_cost
                 logger.info(f"Arbitrage: Guaranteed profit ${profit:.2f}")
                 
             return should_exit
@@ -267,16 +275,18 @@ class Trader:
                 # Execute trade (similar to existing execution)
                 # Note: Would need to adapt execute_market_order for limit orders
                 # For now, using market order as example
-                trade_result = self.polymarket.execute_market_order([market], trade["amount"], trade["token_id"])
+                trade_result = self.polymarket.execute_market_order([market], trade["dollar_amount"], trade["token_id"])
                 logger.info(f"TRADE EXECUTED: {trade_result}")
+                trade_amount = float(trade_result["takingAmount"]) # number of shares purchased
+                trade_cost = float(trade_result["makingAmount"]) # $ cost of the shares
                 # Update positions
                 current_positions["market_id"] = market["id"]
                 if trade["side"] == "YES":
-                    current_positions["qty_yes"] += trade["amount"]
-                    current_positions["cost_yes"] += trade["price"] * trade["amount"]
+                    current_positions["amount_yes"] += trade_amount
+                    current_positions["cost_yes"] += trade_cost
                 else:
-                    current_positions["qty_no"] += trade["amount"]
-                    current_positions["cost_no"] += trade["price"] * trade["amount"]
+                    current_positions["amount_no"] += trade_amount
+                    current_positions["cost_no"] += trade_cost
                 
                 # Save updated positions
                 self.save_arbitrage_positions(current_positions, market["id"])

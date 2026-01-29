@@ -358,12 +358,12 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
-    def execute_market_order(self, market: str, amount: str, token_id: str, max_retries: int = 3) -> str:
+    def execute_market_order(self, market: str, dollar_amount: str, token_id: str, max_retries: int = 3) -> str:
         for attempt in range(max_retries):
             try:                        
                 order_args = MarketOrderArgs(
                     token_id=token_id,
-                    amount=amount,
+                    amount=dollar_amount,
                     side="BUY",
                     order_type=OrderType.FOK,
                 )
