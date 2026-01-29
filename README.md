@@ -493,6 +493,50 @@ python -m scripts.python.cli run-autonomous-trader
 5. Calculate the best trade
 6. Execute the trade (if enabled)
 
+#### 12. Run Multiple Instances with Different Configurations
+
+If you want to run two instances of the bot simultaneously with different environment variable configurations (without using screen), you can use the `run_bot.py` helper script.
+
+**Create separate configuration files** (e.g., `.env.config1` and `.env.config2`) with your different settings:
+
+```bash
+# .env.config1
+POLYGON_WALLET_PRIVATE_KEY="your_key_1"
+OPENAI_API_KEY="your_key_1"
+trading_strategy=arbitrage
+arbitrage_series_slug=btc-up-or-down-hourly
+# ... other variables
+
+# .env.config2
+POLYGON_WALLET_PRIVATE_KEY="your_key_2"
+OPENAI_API_KEY="your_key_2"
+trading_strategy=ai_one_best_trade
+# ... other variables
+```
+
+**Run each instance in separate terminals:**
+
+```bash
+# Terminal 1 - Load config1 and run bot
+python run_bot.py .env.config1
+
+# Terminal 2 - Load config2 and run bot
+python run_bot.py .env.config2
+```
+
+The `run_bot.py` script:
+- Loads environment variables from the specified .env file
+- Skips comment lines (starting with #)
+- Parses key=value pairs
+- Automatically executes the `run-autonomous-trader` command
+- Creates separate log files for each instance
+
+This approach allows you to:
+- Run multiple bots with different API keys
+- Use different trading strategies simultaneously
+- Configure different wallets for each bot
+- Maintain independent log files for monitoring
+
 ### Direct Script Execution
 
 You can also run the trading script directly without the CLI:
