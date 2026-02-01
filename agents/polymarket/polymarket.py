@@ -239,7 +239,8 @@ class Polymarket:
         market = {
             "id": int(market["id"]),
             "question": market["question"],
-            "end": market["endDate"] if hasattr(market, "endDate") else "",
+            "startDate": market["startDate"] if "startDate" in market else "",
+            "endDate": market["endDate"] if "endDate" in market else "",
             "description": market["description"],
             "active": market["active"],
             # "deployed": market["deployed"],
@@ -251,6 +252,7 @@ class Polymarket:
             "outcomes": str(market["outcomes"]),
             "outcome_prices": str(market["outcomePrices"]),
             "clob_token_ids": str(market["clobTokenIds"]),
+            "eventStartTime": market["eventStartTime"] if "eventStartTime" in market else "",
         }
         if token_id:
             market["clob_token_ids"] = token_id

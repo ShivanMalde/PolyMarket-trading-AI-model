@@ -12,14 +12,11 @@ class TradeOrderArgs(BaseModel):
 class SimpleMarket(BaseModel):
     id: int
     question: str
-    # start: str
-    end: str
+    startDate: str
+    endDate: str
     description: str
     active: bool
-    # deployed: Optional[bool]
     funded: bool
-    # orderMinSize: float
-    # orderPriceMinTickSize: float
     rewardsMinSize: float
     rewardsMaxSpread: float
     # volume: Optional[float]
@@ -27,6 +24,7 @@ class SimpleMarket(BaseModel):
     outcomes: str
     outcome_prices: str
     clob_token_ids: Optional[str]
+    eventStartTime: str
 
 
 class ClobReward(BaseModel):

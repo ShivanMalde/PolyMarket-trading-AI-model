@@ -75,5 +75,4 @@ Thumbs.db
 *.json.bak
 *.csv
 
-
-arbitrage_positions.json
+trading_performance.json
