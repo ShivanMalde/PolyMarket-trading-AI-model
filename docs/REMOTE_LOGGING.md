@@ -51,7 +51,7 @@ cd /path/to/PolyMarket-trading-AI-model
 screen -S trading_agent
 
 # Run the script
-python -m scripts.python.cli run_autonomous_trader
+python -m scripts.python.cli run-autonomous-trader
 
 # Press Ctrl+A then D to detach from screen
 # Screen will continue running in background

@@ -241,8 +241,7 @@ def run_autonomous_trader() -> None:
         trader.ai_one_best_trade()
     elif trader.trading_strategy == "arbitrage":
         slug = getenv("arbitrage_series_slug")
-        dry_run_initial_trade = bool(literal_eval(getenv("dry_run_initial_trade"))) 
-        trader.arbitrage(dry_run_initial_trade, slug)
+        trader.arbitrage(dry_run, slug)
         while True:
             trader.arbitrage(dry_run, slug)
     else:
