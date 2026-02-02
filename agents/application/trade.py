@@ -536,7 +536,17 @@ class Trader:
                     "shares_amount": trade["dollar_amount"] / trade["price"],
                     "entry_price": trade["price"]
                 }
-                if performance:
+                if performance is None:
+                    # First trade ever - initialize performance tracking
+                    performance = {
+                        "trade_history": [trade_entry_record],
+                        "total_trades": 1,
+                        "total_dollar_amount_spent": trade["dollar_amount"],
+                        "open_positions": {str(market["id"]): current_positions}
+                    }
+                    self.save_trading_performance(performance)
+                    logger.info(f"Initialized performance tracking and recorded first trade: {trade_entry_record}")
+                else:
                     performance["trade_history"].append(trade_entry_record)
                     performance["total_trades"] += 1
                     performance["total_dollar_amount_spent"] += trade["dollar_amount"]
