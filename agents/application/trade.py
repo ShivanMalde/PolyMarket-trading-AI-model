@@ -1,8 +1,9 @@
 import logging
 import shutil
 import json
+import time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import ast
 from os import getenv
 import random
@@ -252,18 +253,61 @@ class Trader:
             current_pair_cost = avg_yes + avg_no
 
             is_initial_trade = amount_yes == 0 and amount_no == 0 # initial trade in this market
-            
+
+            # Restrict initial trades to first 1 minute of market window
+            if is_initial_trade:
+                try:
+                    current_time = datetime.now(timezone.utc)
+                    # Parse market start time
+                    market_start = datetime.fromisoformat(market["eventStartTime"].replace("Z", "+00:00"))
+                    # Calculate time elapsed since market start
+                    time_elapsed = current_time - market_start
+                    # Only trade initial positions within first 1 minute
+                    if time_elapsed > timedelta(minutes=1):
+                        # Calculate time until market end to wait efficiently
+                        try:
+                            market_end = datetime.fromisoformat(market["endDate"].replace("Z", "+00:00"))
+                            time_until_end = market_end - current_time
+                            # Wait until 2 minutes before market end
+                            wait_target = max(timedelta(minutes=2), time_until_end - timedelta(minutes=2))
+
+                            if time_until_end > timedelta(minutes=2):
+                                wait_seconds = int(wait_target.total_seconds())
+                                logger.info(f"Trade rejected: Market started {time_elapsed.total_seconds():.0f}s ago (exceeds 1min window)")
+                                logger.info(f"Waiting {wait_seconds}s until near market end ({time_until_end.total_seconds():.0f}s remaining)")
+                                time.sleep(wait_seconds)
+                                return {}
+                            else:
+                                logger.info(f"Trade rejected: Market started {time_elapsed.total_seconds():.0f}s ago, market ending in {time_until_end.total_seconds():.0f}s")
+                                return {}
+                        except (KeyError, ValueError) as e:
+                            logger.warning(f"Could not parse market end time: {e}")
+                            logger.info(f"Trade rejected: Market started {time_elapsed.total_seconds():.0f}s ago (exceeds 1min window)")
+                            return {}
+                except (KeyError, ValueError) as e:
+                    logger.warning(f"Could not parse market start time, allowing trade: {e}")
+
             # Price thresholds (configurable)
             cheap_threshold = float(getenv("ARBITRAGE_CHEAP_THRESHOLD", "0.49"))
+            mispricing_threshold = float(getenv("ARBITRAGE_MISPRICING_THRESHOLD", "1.05"))
             safety_margin = float(getenv("ARBITRAGE_SAFETY_MARGIN", "0.99"))
-            
+
             # Check for cheap opportunities
             yes_cheap = prices["yes_price"] and prices["yes_price"] < cheap_threshold
             no_cheap = prices["no_price"] and prices["no_price"] < cheap_threshold
-            
+
+            # NEW: Relative mispricing check - when market is inefficient
+            if not (yes_cheap or no_cheap) and prices.get("yes_price") and prices.get("no_price"):
+                total_price = prices["yes_price"] + prices["no_price"]
+                if total_price > mispricing_threshold:
+                    # Market is inefficient - trade the cheaper side
+                    yes_cheap = prices["yes_price"] < prices["no_price"]
+                    no_cheap = prices["no_price"] < prices["yes_price"]
+                    logger.info(f"Relative mispricing detected: yes={prices['yes_price']:.3f} + no={prices['no_price']:.3f} = {total_price:.3f} > {mispricing_threshold}")
+
             if not (yes_cheap or no_cheap):
                 return {}  # No opportunity
-                
+
             # Determine trade side and size
             side = "YES" if yes_cheap else "NO"
             price = prices["yes_price"] if side == "YES" else prices["no_price"]
@@ -398,13 +442,13 @@ class Trader:
 
             # Load positions (from the trading performance json file)
             performance = self.load_trading_performance()
-            if performance and str(market["id"]) in performance.get("open_positions", {}):
-                current_positions = performance["open_positions"][str(market["id"])].copy()
-                logger.info(f"Loaded positions for market {market['id']} from trading_performance.json")
-            elif performance and str(market["id"]) in performance.get("closed_positions", {}):
+            if performance and str(market["id"]) in performance.get("closed_positions", {}):
                 current_positions = performance["closed_positions"][str(market["id"])].copy()
                 logger.info(f"Positions for market {market['id']} have already been closed in trading_performance.json")
                 return
+            elif performance and str(market["id"]) in performance.get("open_positions", {}):
+                current_positions = performance["open_positions"][str(market["id"])].copy()
+                logger.info(f"Loaded positions for market {market['id']} from trading_performance.json")
             else:
                 current_positions = {"amount_yes": 0.0, "amount_no": 0.0, "cost_yes": 0.0, "cost_no": 0.0}
                 logger.info(f"No existing positions for market {market['id']}")
