@@ -316,8 +316,8 @@ class Trader:
             usdc_balance = self.polymarket.get_usdc_balance()
             
             # Only check balance for initial trades (no existing positions)
-            if is_initial_trade and usdc_balance < 2:
-                logger.info(f"Trade rejected: balance {usdc_balance} is below minimum $2 for initial trade")
+            if is_initial_trade and usdc_balance < 3:
+                logger.info(f"Trade rejected: balance {usdc_balance} is below minimum $3 for initial trade")
                 return {}
 
             base_size = max(min(usdc_balance * 0.05, 10.0), 1.0)  # ceiling of 5% of balance or $10, floor of $1
@@ -532,30 +532,26 @@ class Trader:
                     "market_id": market["id"],
                     "market_question": market["question"],
                     "side": trade["side"],
-                    "dollar_amount": trade["dollar_amount"],
-                    "shares_amount": trade["dollar_amount"] / trade["price"],
-                    "entry_price": trade["price"]
+                    "dollar_amount": trade_cost,
+                    "shares_amount": trade_amount,
+                    "entry_price": trade_cost/trade_amount
                 }
-                if performance is None:
+                
+                if not performance:
                     # First trade ever - initialize performance tracking
-                    performance = {
-                        "trade_history": [trade_entry_record],
-                        "total_trades": 1,
-                        "total_dollar_amount_spent": trade["dollar_amount"],
-                        "open_positions": {str(market["id"]): current_positions}
-                    }
-                    self.save_trading_performance(performance)
-                    logger.info(f"Initialized performance tracking and recorded first trade: {trade_entry_record}")
-                else:
-                    performance["trade_history"].append(trade_entry_record)
-                    performance["total_trades"] += 1
-                    performance["total_dollar_amount_spent"] += trade["dollar_amount"]
-                    # Update open positions
-                    if "open_positions" not in performance:
-                        performance["open_positions"] = {}
-                    performance["open_positions"][str(market["id"])] = current_positions
-                    self.save_trading_performance(performance)
-                    logger.info(f"Recorded live trade entry: {trade_entry_record}")
+                    self.initialize_trading_performance()
+                    performance = self.load_trading_performance()
+                    logger.info(f"Initialized performance tracking")
+
+                performance["trade_history"].append(trade_entry_record)
+                performance["total_trades"] += 1
+                performance["total_dollar_amount_spent"] += trade["dollar_amount"]
+                # Update open positions
+                if "open_positions" not in performance:
+                    performance["open_positions"] = {}
+                performance["open_positions"][str(market["id"])] = current_positions
+                self.save_trading_performance(performance)
+                logger.info(f"Recorded live trade entry: {trade_entry_record}")
             else:
                 # DRY RUN: Simulate trade execution
                 logger.info(f"DRY RUN: Simulating {trade['side']} trade of ${trade['dollar_amount']} at ${trade['price']}")
