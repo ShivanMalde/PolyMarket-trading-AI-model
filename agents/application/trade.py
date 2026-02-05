@@ -217,28 +217,43 @@ class Trader:
         }
 
     def monitor_market_prices(self, market: SimpleMarket) -> dict:
-        """Monitor YES/NO prices for a market."""
+        """Monitor YES/NO prices for a market with connection error handling."""
         try:
             token_ids = ast.literal_eval(market["clob_token_ids"])
             if len(token_ids) != 2:
                 return {}
-                
-            # Get best prices for YES and NO tokens
-            yes_price = self.polymarket.get_orderbook_price(token_ids[0], "BUY")
-            no_price = self.polymarket.get_orderbook_price(token_ids[1], "BUY")
-                        
+
+            # Get best prices for YES and NO tokens with individual error handling
+            yes_price = None
+            no_price = None
+
+            try:
+                yes_price = self.polymarket.get_orderbook_price(token_ids[0], "BUY")
+            except Exception as e:
+                logger.warning(f"Failed to fetch YES price for market {market['id']}: {e}")
+
+            try:
+                no_price = self.polymarket.get_orderbook_price(token_ids[1], "BUY")
+            except Exception as e:
+                logger.warning(f"Failed to fetch NO price for market {market['id']}: {e}")
+
+            # Only return if we got both prices
+            if yes_price is None or no_price is None:
+                logger.warning(f"Could not fetch complete prices for market {market['id']}")
+                return {}
+
             return {
                 "yes_price": yes_price,
                 "no_price": no_price,
                 "yes_token_id": token_ids[0],
                 "no_token_id": token_ids[1]
             }
-            
+
         except Exception as e:
-            logger.error(f"Error monitoring prices for market {market.id}: {e}")
+            logger.error(f"Error monitoring prices for market {market["id"]}: {e}")
             return {}
 
-    def calculate_arbitrage_trade(self, positions: dict, prices: dict, market: SimpleMarket) -> dict:
+    def calculate_arbitrage_trade(self, positions: dict, prices: dict, market: SimpleMarket, skip_initial_trade_wait: bool = False) -> dict:
         """Calculate optimal arbitrage trade based on current positions and prices."""
         try:
             # Current position metrics
@@ -255,7 +270,7 @@ class Trader:
             is_initial_trade = amount_yes == 0 and amount_no == 0 # initial trade in this market
 
             # Restrict initial trades to first 1 minute of market window
-            if is_initial_trade:
+            if is_initial_trade and not(skip_initial_trade_wait):
                 try:
                     current_time = datetime.now(timezone.utc)
                     # Parse market start time
@@ -506,7 +521,7 @@ class Trader:
                 return
 
             # Calculate trade
-            trade = self.calculate_arbitrage_trade(current_positions, prices, market)
+            trade = self.calculate_arbitrage_trade(current_positions, prices, market, dry_run)
             if not trade:
                 logger.info("No profitable trade opportunity found")
                 return
@@ -572,8 +587,12 @@ class Trader:
                 # Record trade in trading performance
                 self.record_trade(trade, current_positions)
 
+                avg_yes = current_positions["cost_yes"] / current_positions["amount_yes"] if current_positions["amount_yes"] > 0 else 0
+                avg_no = current_positions["cost_no"] / current_positions["amount_no"] if current_positions["amount_no"] > 0 else 0
+                current_pair_cost = avg_yes + avg_no
+
                 logger.info(f"DRY RUN: Simulated {trade['side']} position - Cost: ${trade['dollar_amount']:.2f}, "
-                           f"Current pair cost: {current_positions.get('cost_yes', 0) + current_positions.get('cost_no', 0):.2f}")
+                           f"Current pair cost: {current_pair_cost:.2f}")
 
         except Exception as e:
             logger.error(f"Error in arbitrage: {e}", exc_info=True)

@@ -320,8 +320,32 @@ class Polymarket:
     def get_orderbook(self, token_id: str) -> OrderBookSummary:
         return self.client.get_order_book(token_id)
 
-    def get_orderbook_price(self, token_id: str, side: str) -> float:
-        return float(self.client.get_price(token_id, side)["price"])
+    def get_orderbook_price(self, token_id: str, side: str, max_retries: int = 3) -> float:
+        """
+        Fetch orderbook price with retry logic for connection errors.
+
+        Args:
+            token_id: The token ID to fetch price for
+            side: "BUY" or "SELL"
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            float: The price
+
+        Raises:
+            Exception: If all retries fail
+        """
+        for attempt in range(max_retries):
+            try:
+                return float(self.client.get_price(token_id, side)["price"])
+            except (httpx.RemoteProtocolError, Exception) as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    self.client.logger.warning(f"Price fetch failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    self.client.logger.error(f"Price fetch failed after {max_retries} attempts: {e}")
+                    raise
 
     def get_address_for_private_key(self):
         account = self.web3.eth.account.from_key(str(self.private_key))
